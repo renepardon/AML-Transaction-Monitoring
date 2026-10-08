@@ -1,0 +1,11 @@
+# ZAP baseline rules: <rule id><TAB><IGNORE|INFO|WARN|FAIL><TAB><reason>
+# The scan runs with -I, so only FAIL rules break the build; everything else is reported.
+10020	FAIL	Anti-clickjacking header (X-Frame-Options / frame-ancestors) must be present
+10021	FAIL	X-Content-Type-Options: nosniff must be present
+10036	FAIL	Server header must not leak the nginx version (server_tokens off)
+10037	FAIL	No X-Powered-By header
+10038	FAIL	Content-Security-Policy header must be present
+10063	FAIL	Permissions-Policy header must be present
+10098	FAIL	No permissive cross-domain (CORS) configuration
+90004	FAIL	Cross-origin isolation (COOP/COEP/CORP) must be present
+10055	WARN	CSP style-src unsafe-inline is accepted (ADR-0019); other CSP findings are reported

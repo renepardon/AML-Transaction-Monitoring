@@ -1,0 +1,123 @@
+# Static analysis (SAST), secret scanning and repository scanning with Trivy.
+# Actions are pinned to commit SHAs (tag in comment); tool images are pinned by tag and digest in
+# .github/tool-images/Dockerfile, which Dependabot keeps current.
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 4 * * 1" # weekly, picks up newly published vulnerabilities
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  codeql:
+    name: SAST (CodeQL, ${{ matrix.language }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, actions]
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed # v2.22.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-extended
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          category: /language:${{ matrix.language }}
+
+  secrets:
+    name: Secret scan (TruffleHog, full history)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed # v2.22.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout (full history)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve pinned tool image
+        id: tools
+        run: echo "trufflehog=$(awk '$1 == "FROM" && $NF == "trufflehog" { print $2 }' .github/tool-images/Dockerfile)" >> "$GITHUB_OUTPUT"
+
+      - name: Scan all commits for verified and unverified secrets
+        env:
+          TRUFFLEHOG_IMAGE: ${{ steps.tools.outputs.trufflehog }}
+        run: |
+          docker run --rm --network host -v "$PWD:/repo:ro" "$TRUFFLEHOG_IMAGE" \
+            git file:///repo --results=verified,unknown --fail --no-update
+
+  trivy-repo:
+    name: Trivy (dependencies, secrets, misconfiguration)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed # v2.22.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Resolve pinned tool image
+        id: tools
+        run: echo "trivy=$(awk '$1 == "FROM" && $NF == "trivy" { print $2 }' .github/tool-images/Dockerfile)" >> "$GITHUB_OUTPUT"
+
+      - name: Scan repository (HIGH/CRITICAL fail the build)
+        env:
+          TRIVY_IMAGE: ${{ steps.tools.outputs.trivy }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/trivy-cache" "$RUNNER_TEMP/out"
+          trivy() { docker run --rm -v "$PWD:/src:ro" -v "$RUNNER_TEMP/trivy-cache:/root/.cache/trivy" -v "$RUNNER_TEMP/out:/out" "$TRIVY_IMAGE" "$@"; }
+          # The tool-image file is never built, so its Dockerfile checks do not apply.
+          common=(fs --scanners vuln,secret,misconfig --skip-files .github/tool-images/Dockerfile --no-progress /src)
+          trivy "${common[@]}" --format sarif --output /out/trivy-repo.sarif
+          trivy "${common[@]}" --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1
+
+      - name: Upload results to code scanning
+        if: success() || failure()
+        uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          sarif_file: ${{ runner.temp }}/out/trivy-repo.sarif
+          category: trivy-repo

@@ -1,0 +1,3 @@
+client_id,name,client_type,occupation_or_business,age,risk_category,expected_monthly_inflow_chf,expected_monthly_outflow_chf,expected_countries,iban
+C1001,Elsa Brunner,Privatperson,Pensionierte Primarlehrerin,71,normal,5200,4800,CH,CH3208146000100100001
+C1003,Nordstern Trading GmbH,Juristische Person,"Handel mit Haushaltswaren, 3 Mitarbeitende",,erhöht,50000,48000,"CH, DE, IT",CH7508146000100100003

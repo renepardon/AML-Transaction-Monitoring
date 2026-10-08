@@ -1,0 +1,46 @@
+name: Bug report
+description: Something does not work as expected.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please don't include real customer or transaction data. Security problems go to a private advisory, not here.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you see, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the Cases page
+        2. Press E on the first case
+        3. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: how-run
+    attributes:
+      label: How do you run the app?
+      options:
+        - npm run dev
+        - npm run build + preview
+        - Docker image
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Browser and version, OS, Node version, commit SHA.
+      placeholder: Firefox 140, macOS 26, Node 24.21, abc1234
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console output or screenshots
+      description: Browser console errors, test output or screenshots.

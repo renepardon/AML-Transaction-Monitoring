@@ -1,0 +1,12 @@
+.idea
+node_modules
+dist
+coverage
+.DS_Store
+*.local
+.env
+
+# Editor swap and backup files
+*.swp
+*.swo
+*~

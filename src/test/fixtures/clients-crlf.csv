@@ -1,0 +1,2 @@
+client_id,name,client_type,occupation_or_business,age,risk_category,expected_monthly_inflow_chf,expected_monthly_outflow_chf,expected_countries,iban
+C1002,"Schaller, Viktor",Privatperson,"Inhaber ""Auto"" Handel",48,erhöht,25000,22000,"CH, DE",CH0508146000100100002

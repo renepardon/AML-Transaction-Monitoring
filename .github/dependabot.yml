@@ -1,0 +1,61 @@
+# Dependabot: version updates on a schedule, security updates immediately.
+# Security updates additionally require "Dependabot alerts" and "Dependabot security updates"
+# to be enabled in the repository settings (Settings → Code security).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: Europe/Zurich
+    open-pull-requests-limit: 10
+    # Supply-chain safety: wait before adopting brand-new releases (not applied to security updates).
+    cooldown:
+      default-days: 3
+      semver-major-days: 7
+    groups:
+      npm-minor-and-patch:
+        applies-to: version-updates
+        update-types: [minor, patch]
+    labels: [dependencies, npm]
+    commit-message:
+      prefix: deps
+      include: scope
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: Europe/Zurich
+    cooldown:
+      default-days: 3
+    groups:
+      github-actions:
+        applies-to: version-updates
+        patterns: ["*"]
+    labels: [dependencies, github-actions]
+    commit-message:
+      prefix: ci
+
+  - package-ecosystem: docker
+    directories:
+      - / # Dockerfile (node build image, official nginx image)
+      - /.github/tool-images # Trivy, TruffleHog, ZAP images used by CI
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: Europe/Zurich
+    cooldown:
+      default-days: 3
+    ignore:
+      # Stay on the Node 24 LTS line for the build stage; majors are a deliberate decision (ADR-0021).
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
+    labels: [dependencies, docker]
+    commit-message:
+      prefix: docker

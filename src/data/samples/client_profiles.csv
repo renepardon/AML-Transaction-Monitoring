@@ -1,0 +1,7 @@
+client_id,name,client_type,occupation_or_business,age,risk_category,expected_monthly_inflow_chf,expected_monthly_outflow_chf,expected_countries,iban
+C1001,Elsa Brunner,Privatperson,Pensionierte Primarlehrerin,71,normal,5200,4800,CH,CH3208146000100100001
+C1002,Viktor Schaller,Privatperson (selbständig),"Inhaber Occasions-Autohandel, Einzelfirma",48,erhöht,25000,22000,"CH, DE",CH0508146000100100002
+C1003,Nordstern Trading GmbH,Juristische Person,"Handel mit Haushaltswaren, 3 Mitarbeitende",,erhöht,50000,48000,"CH, DE, IT",CH7508146000100100003
+C1004,Lukas Frei,Privatperson,Angestellter Logistik,34,normal,6800,6300,CH,CH4808146000100100004
+C1005,Bäckerei Moser AG,Juristische Person,"Bäckerei mit 2 Filialen, 14 Mitarbeitende",,normal,95000,92000,CH,CH2108146000100100005
+C1006,Sara Huber,Privatperson,Projektleiterin Versicherung,39,normal,9800,8200,CH,CH9108146000100100006

@@ -1,0 +1,128 @@
+# Build the hardened image, verify its hardening, smoke-test it, run a DAST baseline scan (ZAP)
+# and scan the image with Trivy (+ SBOM). Actions are pinned to commit SHAs (tag in comment);
+# tool images are pinned by tag and digest in .github/tool-images/Dockerfile.
+name: Container
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "37 4 * * 1" # weekly, picks up newly published vulnerabilities in the base image
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  IMAGE: aml-poc:ci
+
+jobs:
+  image:
+    name: Build, verify, DAST, Trivy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed # v2.22.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Resolve pinned tool images
+        id: tools
+        run: |
+          for t in trivy zap; do
+            echo "$t=$(awk -v t="$t" '$1 == "FROM" && $NF == t { print $2 }' .github/tool-images/Dockerfile)" >> "$GITHUB_OUTPUT"
+          done
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          load: true
+          push: false
+          tags: ${{ env.IMAGE }}
+
+      - name: Verify image hardening
+        run: |
+          user=$(docker image inspect --format '{{.Config.User}}' "$IMAGE")
+          [ "$user" = "65532:65532" ] || { echo "image user is '$user', expected 65532:65532"; exit 1; }
+          if docker run --rm --entrypoint /bin/sh "$IMAGE" -c true 2>/dev/null; then
+            echo "image contains a shell"; exit 1
+          fi
+          echo "ok: non-root user, no shell"
+
+      - name: Start container with production hardening
+        run: |
+          docker run -d --name app -p 8080:8080 \
+            --read-only --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
+            --cap-drop=ALL --security-opt=no-new-privileges --user 65532:65532 \
+            "$IMAGE"
+          for _ in $(seq 1 30); do
+            curl -fs http://localhost:8080/healthz >/dev/null && exit 0
+            sleep 1
+          done
+          docker logs app; exit 1
+
+      - name: Smoke test (behaviour and security headers)
+        run: .github/scripts/smoke-test.sh http://localhost:8080
+
+      - name: DAST (ZAP baseline scan)
+        if: success() || failure()
+        env:
+          ZAP_IMAGE: ${{ steps.tools.outputs.zap }}
+        run: |
+          mkdir -p zap && cp .github/zap/rules.tsv zap/ && chmod 0777 zap
+          # -I: warnings are reported, only rules marked FAIL in rules.tsv break the build.
+          docker run --rm --network host -v "$PWD/zap:/zap/wrk:rw" "$ZAP_IMAGE" \
+            zap-baseline.py -t http://localhost:8080 -c rules.tsv -I -m 2 \
+              -r zap-report.html -J zap-report.json
+
+      - name: Trivy image scan (HIGH/CRITICAL fail the build) and SBOM
+        if: success() || failure()
+        env:
+          TRIVY_IMAGE: ${{ steps.tools.outputs.trivy }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/trivy-cache" "$RUNNER_TEMP/out"
+          docker save "$IMAGE" -o "$RUNNER_TEMP/out/image.tar"
+          trivy() { docker run --rm -v "$RUNNER_TEMP/trivy-cache:/root/.cache/trivy" -v "$RUNNER_TEMP/out:/out" "$TRIVY_IMAGE" "$@"; }
+          trivy image --input /out/image.tar --no-progress --format cyclonedx --output /out/sbom.cdx.json
+          trivy image --input /out/image.tar --no-progress --format sarif --output /out/trivy-image.sarif
+          trivy image --input /out/image.tar --no-progress --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1
+
+      - name: Upload Trivy results to code scanning
+        if: success() || failure()
+        uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          sarif_file: ${{ runner.temp }}/out/trivy-image.sarif
+          category: trivy-image
+
+      - name: Upload reports (ZAP, SBOM)
+        if: success() || failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: container-reports
+          path: |
+            zap/zap-report.html
+            zap/zap-report.json
+            ${{ runner.temp }}/out/sbom.cdx.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Container logs
+        if: always()
+        run: docker logs app 2>&1 | tail -n 100 || true
