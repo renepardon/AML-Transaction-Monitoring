@@ -17,7 +17,7 @@ COPY src ./src
 RUN npm run build
 
 # ---- assemble a minimal nginx root filesystem ------------------------------------------
-FROM nginx:1.30.5-alpine-slim@sha256:32463212baf0e7d91aded2e9b843a4f2b9e017804b8c9d5bae7b51dcef64389c AS rootfs
+FROM nginx:1.31.0-alpine-slim@sha256:241b0d0fe06250e026e7a35a008d022c9a1d3bec19442d65cc33b84d0b5dd64d AS rootfs
 COPY docker/nginx.conf docker/security-headers.conf /tmp/conf/
 COPY --from=build /app/dist /tmp/dist
 RUN set -eux; \
