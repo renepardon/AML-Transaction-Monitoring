@@ -39,6 +39,7 @@ an analyst from triage to a four-eyes-approved suspicious activity report.
 > Uploads replace the dataset; they don't add to it. Each upload throws away the current data, including the sample data, and builds a new dataset from the files you drop. To combine your files with the samples, drop them all together (at most 10 files).
 >
 > Rules for files
+>
 > - Up to 10 files per upload, 5 MB each. Only .xml and .csv are accepted, and the file type is decided by the extension.
 > - XML must be camt.053, versions camt.053.001.02 to .19. A different format or a <!DOCTYPE or <!ENTITY in the file rejects that file.
 > - CSV must be a client profile file with exactly these columns: client_id,name,client_type,occupation_or_business,age,risk_category,expected_monthly_inflow_chf,expected_monthly_outflow_chf,expected_countries,iban. risk_category must be normal or erhöht, and IBANs must pass the checksum. Bad rows become warnings, and the rest of the file still loads.
@@ -46,6 +47,7 @@ an analyst from triage to a four-eyes-approved suspicious activity report.
 > - One bad file doesn't stop the others. It shows up as rejected with the reason.
 >
 > What happens after an upload
+>
 > - Transactions are linked to clients by IBAN.
 > - A statement whose IBAN isn't in any loaded CSV still loads, with an "IBAN has no client profile" warning. But detection needs the profiles, so upload the CSV together with the statements.
 > - Duplicate entries are skipped with a warning, and every statement is checked against its opening and closing balances.
